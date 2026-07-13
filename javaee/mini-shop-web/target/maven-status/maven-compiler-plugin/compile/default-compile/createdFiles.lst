@@ -1,0 +1,3 @@
+com\minishop\web\config\WebMvcConfig.class
+com\minishop\web\exception\GlobalExceptionHandler.class
+com\minishop\web\MiniShopApplication.class

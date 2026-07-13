@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>商品管理 - 迷你电商后台</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="logo">迷你电商</div>
+        <ul class="menu" id="menuList">
+            <li><a href="/product/list" class="active"><span class="icon">&#128722;</span>商品管理</a></li>
+            <li><a href="/order/list"><span class="icon">&#128196;</span>订单管理</a></li>
+            <!-- 用户管理菜单将由JS动态生成 -->
+        </ul>
+    </aside>
+    <div class="main">
+        <header class="header">
+            <div class="breadcrumb">商品管理 / 商品列表</div>
+            <div class="user-info">
+                <a class="logout" href="javascript:logout()">退出登录</a>
+            </div>
+        </header>
+        <div class="content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>商品列表</h2>
+                    <button class="btn btn-primary" onclick="showAddModal()">+ 新增商品</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="searchName" placeholder="商品名称" style="width:180px;">
+                    <select id="searchCategory" style="width:150px;"><option value="">全部分类</option></select>
+                    <select id="searchStatus">
+                        <option value="">全部状态</option>
+                        <option value="0">上架</option>
+                        <option value="1">下架</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadList(1)">搜索</button>
+                    <button class="btn" onclick="resetSearch()">重置</button>
+                </div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>商品ID</th>
+                        <th>商品名称</th>
+                        <th>分类</th>
+                        <th>价格</th>
+                        <th>库存</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    <tr><td colspan="8" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">新增商品</h3>
+            <button class="modal-close" onclick="hideModal('editModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editProductId">
+            <div class="form-group">
+                <label>商品名称</label>
+                <input type="text" id="editName" placeholder="请输入商品名称">
+            </div>
+            <div class="form-group">
+                <label>商品分类</label>
+                <select id="editCategory" style="width:100%;"><option value="">请选择分类</option></select>
+            </div>
+            <div class="form-group">
+                <label>价格</label>
+                <input type="number" id="editPrice" placeholder="请输入价格" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label>库存</label>
+                <input type="number" id="editStock" placeholder="请输入库存" min="0">
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="editStatus">
+                    <option value="0">上架</option>
+                    <option value="1">下架</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>商品描述</label>
+                <textarea id="editDesc" rows="3" placeholder="请输入商品描述"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="hideModal('editModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveProduct()">确定</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>商品详情</h3>
+            <button class="modal-close" onclick="hideModal('detailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="detailBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="hideModal('detailModal')">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentPage = 1;
+const pageSize = 10;
+let categories = [];
+
+function loadCategories() {
+    API.get('/api/category/list').then(res => {
+        if (res.code === 200) {
+            categories = res.data || [];
+            let opts = '<option value="">全部分类</option>';
+            let editOpts = '<option value="">请选择分类</option>';
+            categories.filter(c => c.parentId === 0).forEach(p => {
+                opts += `<optgroup label="${p.categoryName}">`;
+                editOpts += `<optgroup label="${p.categoryName}">`;
+                categories.filter(c => c.parentId === p.categoryId && c.status === 0).forEach(c => {
+                    opts += `<option value="${c.categoryId}">${c.categoryName}</option>`;
+                    editOpts += `<option value="${c.categoryId}">${c.categoryName}</option>`;
+                });
+                opts += '</optgroup>';
+                editOpts += '</optgroup>';
+            });
+            document.getElementById('searchCategory').innerHTML = opts;
+            document.getElementById('editCategory').innerHTML = editOpts;
+        }
+    });
+}
+
+function getCategoryName(id) {
+    const c = categories.find(c => c.categoryId === id);
+    return c ? c.categoryName : '-';
+}
+
+function loadList(pageNum) {
+    currentPage = pageNum;
+    const name = document.getElementById('searchName').value.trim();
+    const categoryId = document.getElementById('searchCategory').value;
+    const status = document.getElementById('searchStatus').value;
+    let url = `/api/product/list?pageNum=${pageNum}&pageSize=${pageSize}`;
+    if (name) url += `&productName=${encodeURIComponent(name)}`;
+    // 只传递有效的数字参数
+    if (categoryId && !isNaN(categoryId)) url += `&categoryId=${categoryId}`;
+    if (status !== '' && !isNaN(status)) url += `&status=${status}`;
+    API.get(url).then(res => {
+        if (res.code !== 200) {
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="8" class="empty">${res.message || '加载失败'}</td></tr>`;
+            return;
+        }
+        const data = res.data;
+        let html = '';
+        if (data.list.length === 0) {
+            html = '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+        } else {
+            data.list.forEach(p => {
+                const statusTag = p.status === 0
+                    ? '<span class="tag tag-success">上架</span>'
+                    : '<span class="tag tag-danger">下架</span>';
+                html += `<tr>
+                    <td>${p.productId}</td>
+                    <td>${p.productName}</td>
+                    <td>${p.categoryName || getCategoryName(p.categoryId)}</td>
+                    <td style="color:#f5222d;font-weight:500;">¥${p.price}</td>
+                    <td>${p.stock}</td>
+                    <td>${statusTag}</td>
+                    <td>${formatDateTime(p.createTime)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewProduct(${p.productId})">查看</button>
+                        <button class="btn btn-sm btn-success" onclick="editProduct(${p.productId})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.productId})">删除</button>
+                    </td>
+                </tr>`;
+            });
+        }
+        document.getElementById('tableBody').innerHTML = html;
+        renderPagination('pagination', data, 'loadList');
+    });
+}
+
+function showAddModal() {
+    document.getElementById('modalTitle').textContent = '新增商品';
+    document.getElementById('editProductId').value = '';
+    document.getElementById('editName').value = '';
+    document.getElementById('editCategory').value = '';
+    document.getElementById('editPrice').value = '';
+    document.getElementById('editStock').value = '';
+    document.getElementById('editStatus').value = '0';
+    document.getElementById('editDesc').value = '';
+    showModal('editModal');
+}
+
+function editProduct(id) {
+    API.get(`/api/product/${id}`).then(res => {
+        if (res.code !== 200) { alert(res.message); return; }
+        const p = res.data;
+        document.getElementById('modalTitle').textContent = '编辑商品';
+        document.getElementById('editProductId').value = p.productId;
+        document.getElementById('editName').value = p.productName;
+        document.getElementById('editCategory').value = p.categoryId;
+        document.getElementById('editPrice').value = p.price;
+        document.getElementById('editStock').value = p.stock;
+        document.getElementById('editStatus').value = p.status;
+        document.getElementById('editDesc').value = p.description || '';
+        showModal('editModal');
+    });
+}
+
+function viewProduct(id) {
+    API.get(`/api/product/${id}`).then(res => {
+        if (res.code !== 200) { alert(res.message); return; }
+        const p = res.data;
+        document.getElementById('detailBody').innerHTML = `
+            <table class="detail-table">
+                <tr><th>商品ID</th><td>${p.productId}</td></tr>
+                <tr><th>商品名称</th><td>${p.productName}</td></tr>
+                <tr><th>所属分类</th><td>${p.categoryName || getCategoryName(p.categoryId)}</td></tr>
+                <tr><th>价格</th><td style="color:#f5222d;font-weight:bold;">¥${p.price}</td></tr>
+                <tr><th>库存</th><td>${p.stock}</td></tr>
+                <tr><th>状态</th><td>${p.status === 0 ? '上架' : '下架'}</td></tr>
+                <tr><th>描述</th><td>${p.description || '-'}</td></tr>
+                <tr><th>创建时间</th><td>${formatDateTime(p.createTime)}</td></tr>
+            </table>`;
+        showModal('detailModal');
+    });
+}
+
+function saveProduct() {
+    const id = document.getElementById('editProductId').value;
+    const productName = document.getElementById('editName').value.trim();
+    const categoryId = document.getElementById('editCategory').value;
+    const price = parseFloat(document.getElementById('editPrice').value);
+    const stock = parseInt(document.getElementById('editStock').value);
+    const status = parseInt(document.getElementById('editStatus').value);
+    const description = document.getElementById('editDesc').value.trim();
+    if (!productName) { alert('请输入商品名称'); return; }
+    if (!categoryId) { alert('请选择商品分类'); return; }
+    if (isNaN(price) || price < 0) { alert('请输入有效价格'); return; }
+    if (isNaN(stock) || stock < 0) { alert('请输入有效库存'); return; }
+    const body = { productName, categoryId: parseInt(categoryId), price, stock, status, description };
+    if (id) {
+        body.productId = parseInt(id);
+        API.put('/api/product', body).then(res => {
+            if (res.code === 200) { hideModal('editModal'); loadList(currentPage); }
+            else alert(res.message);
+        });
+    } else {
+        API.post('/api/product', body).then(res => {
+            if (res.code === 200) { hideModal('editModal'); loadList(1); }
+            else alert(res.message);
+        });
+    }
+}
+
+function deleteProduct(id) {
+    if (!confirm('确定要删除该商品吗？')) return;
+    API.del(`/api/product/${id}`).then(res => {
+        if (res.code === 200) loadList(currentPage);
+        else alert(res.message);
+    });
+}
+
+function resetSearch() {
+    document.getElementById('searchName').value = '';
+    document.getElementById('searchCategory').value = '';
+    document.getElementById('searchStatus').value = '';
+    loadList(1);
+}
+
+// 根据用户角色动态显示菜单
+function initMenu() {
+    API.get('/api/auth/info').then(res => {
+        if (res.code === 200 && res.data) {
+            const user = res.data;
+            const menuList = document.getElementById('menuList');
+            // 只有admin角色才显示用户管理
+            if (user.roles && user.roles.includes('admin')) {
+                const userMenu = document.createElement('li');
+                userMenu.innerHTML = '<a href="/system/user"><span class="icon">&#128101;</span>用户管理</a>';
+                menuList.appendChild(userMenu);
+            }
+        }
+    });
+}
+
+loadCategories();
+loadList(1);
+initMenu();
+</script>
+</body>
+</html>

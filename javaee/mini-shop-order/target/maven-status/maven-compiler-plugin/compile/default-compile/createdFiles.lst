@@ -1,0 +1,9 @@
+com\minishop\order\vo\CreateOrderVO.class
+com\minishop\order\domain\ShopOrder.class
+com\minishop\order\mapper\OrderItemMapper.class
+com\minishop\order\mapper\ShopOrderMapper.class
+com\minishop\order\service\ShopOrderService.class
+com\minishop\order\vo\OrderVO.class
+com\minishop\order\controller\ShopOrderController.class
+com\minishop\order\domain\OrderItem.class
+com\minishop\order\vo\CreateOrderVO$OrderItemVO.class

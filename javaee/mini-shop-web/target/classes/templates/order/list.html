@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>订单管理 - 迷你电商后台</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="logo">迷你电商</div>
+        <ul class="menu" id="menuList">
+            <li><a href="/product/list"><span class="icon">&#128722;</span>商品管理</a></li>
+            <li><a href="/order/list" class="active"><span class="icon">&#128196;</span>订单管理</a></li>
+            <!-- 用户管理菜单将由JS动态生成 -->
+        </ul>
+    </aside>
+    <div class="main">
+        <header class="header">
+            <div class="breadcrumb">订单管理 / 订单列表</div>
+            <div class="user-info">
+                <a class="logout" href="javascript:logout()">退出登录</a>
+            </div>
+        </header>
+        <div class="content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>订单列表</h2>
+                    <button class="btn btn-primary" onclick="showCreateModal()">+ 创建订单</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="searchOrderNo" placeholder="订单号" style="width:180px;">
+                    <select id="searchStatus">
+                        <option value="">全部状态</option>
+                        <option value="0">待支付</option>
+                        <option value="1">已支付</option>
+                        <option value="2">已发货</option>
+                        <option value="3">已完成</option>
+                        <option value="4">已取消</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadList(1)">搜索</button>
+                    <button class="btn" onclick="resetSearch()">重置</button>
+                </div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>订单ID</th>
+                        <th>订单号</th>
+                        <th>用户</th>
+                        <th>金额</th>
+                        <th>状态</th>
+                        <th>下单时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    <tr><td colspan="7" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="modal" style="width:700px;">
+        <div class="modal-header">
+            <h3>订单详情</h3>
+            <button class="modal-close" onclick="hideModal('detailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="detailBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="hideModal('detailModal')">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="createModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>创建订单</h3>
+            <button class="modal-close" onclick="hideModal('createModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>收货地址</label>
+                <input type="text" id="createAddress" placeholder="请输入收货地址">
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <textarea id="createRemark" rows="2" placeholder="请输入备注"></textarea>
+            </div>
+            <div class="form-group">
+                <label>商品选择</label>
+                <div id="productSelect"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="hideModal('createModal')">取消</button>
+            <button class="btn btn-primary" onclick="createOrder()">创建</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentPage = 1;
+const pageSize = 10;
+let allProducts = [];
+
+function statusTag(s) {
+    const map = { 0:'待支付',1:'已支付',2:'已发货',3:'已完成',4:'已取消' };
+    const cls = { 0:'tag-warning',1:'tag-info',2:'tag-info',3:'tag-success',4:'tag-default' };
+    return `<span class="tag ${cls[s]||'tag-default'}">${map[s]||'未知'}</span>`;
+}
+
+function loadList(pageNum) {
+    currentPage = pageNum;
+    const orderNo = document.getElementById('searchOrderNo').value.trim();
+    const status = document.getElementById('searchStatus').value;
+    let url = `/api/order/list?pageNum=${pageNum}&pageSize=${pageSize}`;
+    if (orderNo) url += `&orderNo=${encodeURIComponent(orderNo)}`;
+    if (status !== '') url += `&status=${status}`;
+    API.get(url).then(res => {
+        if (res.code !== 200) {
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" class="empty">${res.message || '加载失败'}</td></tr>`;
+            return;
+        }
+        const data = res.data;
+        let html = '';
+        if (data.list.length === 0) {
+            html = '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+        } else {
+            data.list.forEach(o => {
+                html += `<tr>
+                    <td>${o.orderId}</td>
+                    <td>${o.orderNo}</td>
+                    <td>${o.username || '-'}</td>
+                    <td style="color:#f5222d;font-weight:500;">¥${o.totalAmount}</td>
+                    <td>${statusTag(o.status)}</td>
+                    <td>${formatDateTime(o.createTime)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewOrder(${o.orderId})">详情</button>
+                        ${o.status === 0 ? `<button class="btn btn-sm btn-success" onclick="payOrder(${o.orderId})">支付</button>` : ''}
+                        <button class="btn btn-sm btn-danger" onclick="deleteOrder(${o.orderId})">删除</button>
+                    </td>
+                </tr>`;
+            });
+        }
+        document.getElementById('tableBody').innerHTML = html;
+        renderPagination('pagination', data, 'loadList');
+    });
+}
+
+function viewOrder(id) {
+    API.get(`/api/order/${id}`).then(res => {
+        if (res.code !== 200) { alert(res.message); return; }
+        const o = res.data;
+        let itemsHtml = '';
+        if (o.items && o.items.length > 0) {
+            itemsHtml = `<table style="width:100%;border-collapse:collapse;margin-top:8px;">
+                <thead><tr style="background:#fafafa;">
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;">商品名称</th>
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;">单价</th>
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;">数量</th>
+                    <th style="padding:8px;text-align:left;border-bottom:1px solid #f0f0f0;">小计</th>
+                </tr></thead><tbody>`;
+            o.items.forEach(it => {
+                itemsHtml += `<tr>
+                    <td style="padding:8px;border-bottom:1px solid #f0f0f0;">${it.productName}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f0f0f0;">¥${it.price}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f0f0f0;">${it.quantity}</td>
+                    <td style="padding:8px;border-bottom:1px solid #f0f0f0;color:#f5222d;">¥${it.totalAmount}</td>
+                </tr>`;
+            });
+            itemsHtml += '</tbody></table>';
+        }
+        document.getElementById('detailBody').innerHTML = `
+            <table class="detail-table">
+                <tr><th>订单ID</th><td>${o.orderId}</td></tr>
+                <tr><th>订单号</th><td>${o.orderNo}</td></tr>
+                <tr><th>下单用户</th><td>${o.username || '-'}</td></tr>
+                <tr><th>订单状态</th><td>${statusTag(o.status)}</td></tr>
+                <tr><th>订单金额</th><td style="color:#f5222d;font-weight:bold;">¥${o.totalAmount}</td></tr>
+                <tr><th>收货地址</th><td>${o.address || '-'}</td></tr>
+                <tr><th>备注</th><td>${o.remark || '-'}</td></tr>
+                <tr><th>下单时间</th><td>${formatDateTime(o.createTime)}</td></tr>
+                <tr><th>支付时间</th><td>${formatDateTime(o.payTime)}</td></tr>
+                <tr><th>商品明细</th><td>${itemsHtml || '-'}</td></tr>
+            </table>`;
+        showModal('detailModal');
+    });
+}
+
+function payOrder(id) {
+    if (!confirm('确认支付该订单？')) return;
+    API.put(`/api/order/${id}/pay`).then(res => {
+        if (res.code === 200) loadList(currentPage);
+        else alert(res.message);
+    });
+}
+
+function deleteOrder(id) {
+    if (!confirm('确定要删除该订单吗？')) return;
+    API.del(`/api/order/${id}`).then(res => {
+        if (res.code === 200) loadList(currentPage);
+        else alert(res.message);
+    });
+}
+
+function showCreateModal() {
+    API.get('/api/product/list?pageNum=1&pageSize=100&status=0').then(res => {
+        allProducts = res.code === 200 ? res.data.list : [];
+        let html = '';
+        allProducts.forEach(p => {
+            html += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5;">
+                <input type="checkbox" class="order-product" value="${p.productId}" data-price="${p.price}" style="width:16px;height:16px;">
+                <span style="flex:1;">${p.productName}</span>
+                <span style="color:#f5222d;">¥${p.price}</span>
+                <input type="number" class="order-qty" value="1" min="1" max="${p.stock}" style="width:60px;padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;" disabled>
+            </div>`;
+        });
+        document.getElementById('productSelect').innerHTML = html;
+        document.querySelectorAll('.order-product').forEach(cb => {
+            cb.addEventListener('change', function() {
+                this.parentElement.querySelector('.order-qty').disabled = !this.checked;
+            });
+        });
+        document.getElementById('createAddress').value = '';
+        document.getElementById('createRemark').value = '';
+        showModal('createModal');
+    });
+}
+
+function createOrder() {
+    const address = document.getElementById('createAddress').value.trim();
+    const remark = document.getElementById('createRemark').value.trim();
+    if (!address) { alert('请输入收货地址'); return; }
+    const items = [];
+    document.querySelectorAll('.order-product:checked').forEach(cb => {
+        const qty = parseInt(cb.parentElement.querySelector('.order-qty').value) || 1;
+        items.push({ productId: parseInt(cb.value), quantity: qty });
+    });
+    if (items.length === 0) { alert('请选择至少一个商品'); return; }
+    API.post('/api/order', { address, remark, items }).then(res => {
+        if (res.code === 200) { hideModal('createModal'); loadList(1); }
+        else alert(res.message);
+    });
+}
+
+function resetSearch() {
+    document.getElementById('searchOrderNo').value = '';
+    document.getElementById('searchStatus').value = '';
+    loadList(1);
+}
+
+// 根据用户角色动态显示菜单
+function initMenu() {
+    API.get('/api/auth/info').then(res => {
+        if (res.code === 200 && res.data) {
+            const user = res.data;
+            const menuList = document.getElementById('menuList');
+            // 只有admin角色才显示用户管理
+            if (user.roles && user.roles.includes('admin')) {
+                const userMenu = document.createElement('li');
+                userMenu.innerHTML = '<a href="/system/user"><span class="icon">&#128101;</span>用户管理</a>';
+                menuList.appendChild(userMenu);
+            }
+        }
+    });
+}
+
+loadList(1);
+initMenu();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+com\minishop\product\controller\ProductController.class
+com\minishop\product\controller\ProductCategoryController.class
+com\minishop\product\service\ProductCategoryService.class
+com\minishop\product\vo\ProductVO.class
+com\minishop\product\mapper\ProductCategoryMapper.class
+com\minishop\product\service\ProductService.class
+com\minishop\product\domain\ProductCategory.class
+com\minishop\product\mapper\ProductMapper.class
+com\minishop\product\vo\CategoryWithProductsVO.class
+com\minishop\product\domain\Product.class

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.minishop.system.mapper.SysMenuMapper">
+
+    <resultMap id="BaseResultMap" type="com.minishop.system.domain.SysMenu">
+        <id column="menu_id" property="menuId"/>
+        <result column="menu_name" property="menuName"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="order_num" property="orderNum"/>
+        <result column="path" property="path"/>
+        <result column="component" property="component"/>
+        <result column="perms" property="perms"/>
+        <result column="icon" property="icon"/>
+        <result column="menu_type" property="menuType"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        menu_id, menu_name, parent_id, order_num, path, component, perms, icon, menu_type, status, create_time
+    </sql>
+
+    <select id="selectMenusByUserId" resultMap="BaseResultMap">
+        SELECT DISTINCT m.menu_id, m.menu_name, m.parent_id, m.order_num, m.path, m.component, m.perms, m.icon, m.menu_type, m.status, m.create_time
+        FROM sys_menu m
+        LEFT JOIN sys_role_menu rm ON m.menu_id = rm.menu_id
+        LEFT JOIN sys_user_role ur ON rm.role_id = ur.role_id
+        WHERE ur.user_id = #{userId} AND m.status = 0
+        ORDER BY m.parent_id, m.order_num
+    </select>
+
+    <select id="selectPermsByUserId" resultType="java.lang.String">
+        SELECT DISTINCT m.perms
+        FROM sys_menu m
+        LEFT JOIN sys_role_menu rm ON m.menu_id = rm.menu_id
+        LEFT JOIN sys_user_role ur ON rm.role_id = ur.role_id
+        WHERE ur.user_id = #{userId} AND m.status = 0 AND m.perms IS NOT NULL AND m.perms != ''
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sys_menu
+        <where>
+            <if test="menu.menuName != null and menu.menuName != ''">
+                AND menu_name LIKE CONCAT('%', #{menu.menuName}, '%')
+            </if>
+            <if test="menu.status != null">
+                AND status = #{menu.status}
+            </if>
+            <if test="menu.menuType != null and menu.menuType != ''">
+                AND menu_type = #{menu.menuType}
+            </if>
+        </where>
+        ORDER BY parent_id, order_num
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="menuId">
+        INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, perms, icon, menu_type, status, create_time)
+        VALUES (#{menuName}, #{parentId}, #{orderNum}, #{path}, #{component}, #{perms}, #{icon}, #{menuType}, #{status}, #{createTime})
+    </insert>
+
+    <update id="update">
+        UPDATE sys_menu
+        <set>
+            <if test="menuName != null">menu_name = #{menuName},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="orderNum != null">order_num = #{orderNum},</if>
+            <if test="path != null">path = #{path},</if>
+            <if test="component != null">component = #{component},</if>
+            <if test="perms != null">perms = #{perms},</if>
+            <if test="icon != null">icon = #{icon},</if>
+            <if test="menuType != null">menu_type = #{menuType},</if>
+            <if test="status != null">status = #{status}</if>
+        </set>
+        WHERE menu_id = #{menuId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sys_menu WHERE menu_id = #{menuId}
+    </delete>
+</mapper>

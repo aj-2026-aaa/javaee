@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.minishop.product.mapper.ProductMapper">
+
+    <!-- 一对一关联查询：商品及其分类名称 -->
+    <resultMap id="ProductVOResultMap" type="com.minishop.product.vo.ProductVO">
+        <id column="product_id" property="productId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="product_name" property="productName"/>
+        <result column="price" property="price"/>
+        <result column="stock" property="stock"/>
+        <result column="image" property="image"/>
+        <result column="description" property="description"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="category_name" property="categoryName"/>
+    </resultMap>
+
+    <sql id="Product_Column_List">
+        p.product_id, p.category_id, p.product_name, p.price, p.stock, p.image, p.description, p.status, p.create_time
+    </sql>
+
+    <select id="selectById" resultMap="ProductVOResultMap">
+        SELECT <include refid="Product_Column_List"/>, c.category_name
+        FROM product p
+        LEFT JOIN product_category c ON p.category_id = c.category_id
+        WHERE p.product_id = #{productId} AND p.del_flag = 0
+    </select>
+
+    <select id="selectList" resultMap="ProductVOResultMap">
+        SELECT <include refid="Product_Column_List"/>, c.category_name
+        FROM product p
+        LEFT JOIN product_category c ON p.category_id = c.category_id
+        <where>
+            p.del_flag = 0
+            <if test="product.productName != null and product.productName != ''">
+                AND p.product_name LIKE CONCAT('%', #{product.productName}, '%')
+            </if>
+            <if test="product.categoryId != null">
+                AND p.category_id = #{product.categoryId}
+            </if>
+            <if test="product.status != null">
+                AND p.status = #{product.status}
+            </if>
+            <if test="product.price != null">
+                AND p.price &lt;= #{product.price}
+            </if>
+        </where>
+        ORDER BY p.create_time DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="productId">
+        INSERT INTO product (
+            category_id, product_name, price, stock, image, description, status,
+            create_by, create_time, update_by, update_time, del_flag
+        ) VALUES (
+            #{categoryId}, #{productName}, #{price}, #{stock}, #{image}, #{description}, #{status},
+            #{createBy}, #{createTime}, #{updateBy}, #{updateTime}, #{delFlag}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE product
+        <set>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="productName != null">product_name = #{productName},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="stock != null">stock = #{stock},</if>
+            <if test="image != null">image = #{image},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null">status = #{status},</if>
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        </set>
+        WHERE product_id = #{productId} AND del_flag = 0
+    </update>
+
+    <update id="deleteById">
+        UPDATE product SET del_flag = 1 WHERE product_id = #{productId}
+    </update>
+
+    <select id="countNormalProducts" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM product WHERE del_flag = 0
+    </select>
+</mapper>

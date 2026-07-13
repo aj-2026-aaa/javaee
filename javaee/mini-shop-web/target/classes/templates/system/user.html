@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>用户管理 - 迷你电商后台</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="logo">迷你电商</div>
+        <ul class="menu" id="menuList">
+            <li><a href="/product/list"><span class="icon">&#128722;</span>商品管理</a></li>
+            <li><a href="/order/list"><span class="icon">&#128196;</span>订单管理</a></li>
+            <!-- 用户管理菜单将由JS动态生成 -->
+        </ul>
+    </aside>
+    <div class="main">
+        <header class="header">
+            <div class="breadcrumb">系统管理 / 用户管理</div>
+            <div class="user-info">
+                <a class="logout" href="javascript:logout()">退出登录</a>
+            </div>
+        </header>
+        <div class="content">
+            <div class="card">
+                <div class="card-header">
+                    <h2>用户列表</h2>
+                    <button class="btn btn-primary" onclick="showAddModal()">+ 新增用户</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="searchUsername" placeholder="用户名" style="width:160px;">
+                    <select id="searchStatus">
+                        <option value="">全部状态</option>
+                        <option value="0">正常</option>
+                        <option value="1">停用</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadList(1)">搜索</button>
+                    <button class="btn" onclick="resetSearch()">重置</button>
+                </div>
+                <table>
+                    <thead>
+                    <tr>
+                        <th>用户ID</th>
+                        <th>用户名</th>
+                        <th>昵称</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    <tr><td colspan="6" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">新增用户</h3>
+            <button class="modal-close" onclick="hideModal('editModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editUserId">
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="editUsername" placeholder="请输入用户名">
+            </div>
+            <div class="form-group">
+                <label>密码 <span style="color:#999;font-size:12px;">(新增时必填，修改时留空则不修改)</span></label>
+                <input type="password" id="editPassword" placeholder="请输入密码">
+            </div>
+            <div class="form-group">
+                <label>昵称</label>
+                <input type="text" id="editNickname" placeholder="请输入昵称">
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="editStatus">
+                    <option value="0">正常</option>
+                    <option value="1">停用</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="hideModal('editModal')">取消</button>
+            <button class="btn btn-primary" onclick="saveUser()">确定</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>用户详情</h3>
+            <button class="modal-close" onclick="hideModal('detailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="detailBody"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="hideModal('detailModal')">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentPage = 1;
+const pageSize = 10;
+
+function loadList(pageNum) {
+    currentPage = pageNum;
+    const username = document.getElementById('searchUsername').value.trim();
+    const status = document.getElementById('searchStatus').value;
+    let url = `/api/user/list?pageNum=${pageNum}&pageSize=${pageSize}`;
+    if (username) url += `&username=${encodeURIComponent(username)}`;
+    if (status !== '') url += `&status=${status}`;
+    API.get(url).then(res => {
+        if (res.code !== 200) {
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="6" class="empty">${res.message || '加载失败'}</td></tr>`;
+            return;
+        }
+        const data = res.data;
+        let html = '';
+        if (data.list.length === 0) {
+            html = '<tr><td colspan="6" class="empty">暂无数据</td></tr>';
+        } else {
+            data.list.forEach(u => {
+                const statusTag = u.status === 0
+                    ? '<span class="tag tag-success">正常</span>'
+                    : '<span class="tag tag-danger">停用</span>';
+                html += `<tr>
+                    <td>${u.userId}</td>
+                    <td>${u.username}</td>
+                    <td>${u.nickname || '-'}</td>
+                    <td>${statusTag}</td>
+                    <td>${formatDateTime(u.createTime)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewUser(${u.userId})">查看</button>
+                        <button class="btn btn-sm btn-success" onclick="editUser(${u.userId})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser(${u.userId})">删除</button>
+                    </td>
+                </tr>`;
+            });
+        }
+        document.getElementById('tableBody').innerHTML = html;
+        renderPagination('pagination', data, 'loadList');
+    });
+}
+
+function showAddModal() {
+    document.getElementById('modalTitle').textContent = '新增用户';
+    document.getElementById('editUserId').value = '';
+    document.getElementById('editUsername').value = '';
+    document.getElementById('editPassword').value = '';
+    document.getElementById('editNickname').value = '';
+    document.getElementById('editStatus').value = '0';
+    document.getElementById('editUsername').disabled = false;
+    showModal('editModal');
+}
+
+function editUser(id) {
+    API.get(`/api/user/${id}`).then(res => {
+        if (res.code !== 200) { alert(res.message); return; }
+        const u = res.data;
+        document.getElementById('modalTitle').textContent = '编辑用户';
+        document.getElementById('editUserId').value = u.userId;
+        document.getElementById('editUsername').value = u.username;
+        document.getElementById('editUsername').disabled = true;
+        document.getElementById('editPassword').value = '';
+        document.getElementById('editNickname').value = u.nickname || '';
+        document.getElementById('editStatus').value = u.status;
+        showModal('editModal');
+    });
+}
+
+function viewUser(id) {
+    API.get(`/api/user/${id}`).then(res => {
+        if (res.code !== 200) { alert(res.message); return; }
+        const u = res.data;
+        document.getElementById('detailBody').innerHTML = `
+            <table class="detail-table">
+                <tr><th>用户ID</th><td>${u.userId}</td></tr>
+                <tr><th>用户名</th><td>${u.username}</td></tr>
+                <tr><th>昵称</th><td>${u.nickname || '-'}</td></tr>
+                <tr><th>状态</th><td>${u.status === 0 ? '正常' : '停用'}</td></tr>
+                <tr><th>创建时间</th><td>${formatDateTime(u.createTime)}</td></tr>
+            </table>`;
+        showModal('detailModal');
+    });
+}
+
+function saveUser() {
+    const id = document.getElementById('editUserId').value;
+    const username = document.getElementById('editUsername').value.trim();
+    const password = document.getElementById('editPassword').value;
+    const nickname = document.getElementById('editNickname').value.trim();
+    const status = parseInt(document.getElementById('editStatus').value);
+    if (!username) { alert('请输入用户名'); return; }
+    if (!id && !password) { alert('请输入密码'); return; }
+    const body = { username, nickname, status };
+    if (password) body.password = password;
+    if (id) {
+        body.userId = parseInt(id);
+        API.put('/api/user', body).then(res => {
+            if (res.code === 200) { hideModal('editModal'); loadList(currentPage); }
+            else alert(res.message);
+        });
+    } else {
+        API.post('/api/user', body).then(res => {
+            if (res.code === 200) { hideModal('editModal'); loadList(1); }
+            else alert(res.message);
+        });
+    }
+}
+
+function deleteUser(id) {
+    if (!confirm('确定要删除该用户吗？')) return;
+    API.del(`/api/user/${id}`).then(res => {
+        if (res.code === 200) loadList(currentPage);
+        else alert(res.message);
+    });
+}
+
+function resetSearch() {
+    document.getElementById('searchUsername').value = '';
+    document.getElementById('searchStatus').value = '';
+    loadList(1);
+}
+
+// 根据用户角色动态显示菜单并验证权限
+function initMenu() {
+    API.get('/api/auth/info').then(res => {
+        if (res.code === 200 && res.data) {
+            const user = res.data;
+            const menuList = document.getElementById('menuList');
+            // 只有admin角色才显示用户管理
+            if (user.roles && user.roles.includes('admin')) {
+                const userMenu = document.createElement('li');
+                userMenu.innerHTML = '<a href="/system/user" class="active"><span class="icon">&#128101;</span>用户管理</a>';
+                menuList.appendChild(userMenu);
+            } else {
+                // 非admin用户访问用户管理页面，重定向到商品管理
+                alert('您没有权限访问此页面');
+                window.location.href = '/product/list';
+            }
+        }
+    });
+}
+
+loadList(1);
+initMenu();
+</script>
+</body>
+</html>

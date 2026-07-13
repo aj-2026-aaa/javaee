@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.minishop.product.mapper.ProductCategoryMapper">
+
+    <resultMap id="BaseResultMap" type="com.minishop.product.domain.ProductCategory">
+        <id column="category_id" property="categoryId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="sort" property="sort"/>
+        <result column="status" property="status"/>
+        <result column="create_by" property="createBy"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_by" property="updateBy"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="del_flag" property="delFlag"/>
+    </resultMap>
+
+    <resultMap id="CategoryWithProductsMap" type="com.minishop.product.vo.CategoryWithProductsVO">
+        <id column="category_id" property="categoryId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="sort" property="sort"/>
+        <result column="status" property="status"/>
+        <collection property="products" ofType="com.minishop.product.vo.ProductVO">
+            <id column="product_id" property="productId"/>
+            <result column="product_name" property="productName"/>
+            <result column="price" property="price"/>
+            <result column="stock" property="stock"/>
+            <result column="image" property="image"/>
+            <result column="description" property="description"/>
+            <result column="product_status" property="status"/>
+            <result column="product_create_time" property="createTime"/>
+        </collection>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        category_id, category_name, parent_id, sort, status,
+        create_by, create_time, update_by, update_time, del_flag
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product_category
+        WHERE category_id = #{categoryId} AND del_flag = 0
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM product_category
+        <where>
+            del_flag = 0
+            <if test="category.categoryName != null and category.categoryName != ''">
+                AND category_name LIKE CONCAT('%', #{category.categoryName}, '%')
+            </if>
+            <if test="category.parentId != null">
+                AND parent_id = #{category.parentId}
+            </if>
+            <if test="category.status != null">
+                AND status = #{category.status}
+            </if>
+        </where>
+        ORDER BY parent_id, sort
+    </select>
+
+    <!-- 一对多关联查询：分类及其商品列表 -->
+    <select id="selectCategoryWithProducts" resultMap="CategoryWithProductsMap">
+        SELECT
+            c.category_id, c.category_name, c.parent_id, c.sort, c.status,
+            p.product_id, p.product_name, p.price, p.stock, p.image, p.description,
+            p.status AS product_status, p.create_time AS product_create_time
+        FROM product_category c
+        LEFT JOIN product p ON c.category_id = p.category_id AND p.del_flag = 0
+        WHERE c.category_id = #{categoryId} AND c.del_flag = 0
+        ORDER BY p.create_time DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="categoryId">
+        INSERT INTO product_category (
+            category_name, parent_id, sort, status,
+            create_by, create_time, update_by, update_time, del_flag
+        ) VALUES (
+            #{categoryName}, #{parentId}, #{sort}, #{status},
+            #{createBy}, #{createTime}, #{updateBy}, #{updateTime}, #{delFlag}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE product_category
+        <set>
+            <if test="categoryName != null">category_name = #{categoryName},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="status != null">status = #{status},</if>
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        </set>
+        WHERE category_id = #{categoryId} AND del_flag = 0
+    </update>
+
+    <update id="deleteById">
+        UPDATE product_category SET del_flag = 1 WHERE category_id = #{categoryId}
+    </update>
+</mapper>

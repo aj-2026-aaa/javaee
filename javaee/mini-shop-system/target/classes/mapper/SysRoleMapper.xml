@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.minishop.system.mapper.SysRoleMapper">
+
+    <resultMap id="BaseResultMap" type="com.minishop.system.domain.SysRole">
+        <id column="role_id" property="roleId"/>
+        <result column="role_name" property="roleName"/>
+        <result column="role_key" property="roleKey"/>
+        <result column="role_sort" property="roleSort"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        role_id, role_name, role_key, role_sort, status, create_time
+    </sql>
+
+    <select id="selectRolesByUserId" resultMap="BaseResultMap">
+        SELECT DISTINCT r.role_id, r.role_name, r.role_key, r.role_sort, r.status, r.create_time
+        FROM sys_role r
+        LEFT JOIN sys_user_role ur ON r.role_id = ur.role_id
+        WHERE ur.user_id = #{userId} AND r.status = 0
+        ORDER BY r.role_sort
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sys_role
+        WHERE role_id = #{roleId}
+    </select>
+
+    <select id="selectList" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sys_role
+        <where>
+            <if test="role.roleName != null and role.roleName != ''">
+                AND role_name LIKE CONCAT('%', #{role.roleName}, '%')
+            </if>
+            <if test="role.roleKey != null and role.roleKey != ''">
+                AND role_key = #{role.roleKey}
+            </if>
+            <if test="role.status != null">
+                AND status = #{role.status}
+            </if>
+        </where>
+        ORDER BY role_sort
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="roleId">
+        INSERT INTO sys_role (role_name, role_key, role_sort, status, create_time)
+        VALUES (#{roleName}, #{roleKey}, #{roleSort}, #{status}, #{createTime})
+    </insert>
+
+    <update id="update">
+        UPDATE sys_role
+        <set>
+            <if test="roleName != null">role_name = #{roleName},</if>
+            <if test="roleKey != null">role_key = #{roleKey},</if>
+            <if test="roleSort != null">role_sort = #{roleSort},</if>
+            <if test="status != null">status = #{status}</if>
+        </set>
+        WHERE role_id = #{roleId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sys_role WHERE role_id = #{roleId}
+    </delete>
+</mapper>
